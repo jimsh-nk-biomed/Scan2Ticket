@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biomedical Service Request</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #eef2f5;
+  margin: 0;
+  padding: 15px;
+}
+
+.logo { text-align:center; margin-bottom:10px; }
+.logo img { max-height:80px; }
+
+h2 { text-align:center; color:#003366; }
+
+#reader { width:100%; max-width:360px; margin:auto; }
+
+.card {
+  background:#ffffff;
+  border-radius:10px;
+  padding:15px;
+  margin-top:15px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* ALIGNMENT */
+.row {
+  display:grid;
+  grid-template-columns:150px 10px auto;
+  align-items:center;
+  margin-bottom:6px;
+}
+
+.label { font-weight:bold; }
+.colon { text-align:center; font-weight:bold; }
+.value { font-size:14px; }
+
+/* STATUS COLORS */
+.green { color:#0f5132; font-weight:bold; }
+.amber { color:#856404; font-weight:bold; }
+.red   { color:#842029; font-weight:bold; }
+
+/* FIELDSET */
+fieldset {
+  border:2px solid #007bff;
+  border-radius:8px;
+  padding:10px;
+  margin-top:12px;
+  background:#f4f9ff;
+}
+
+legend {
+  font-weight:bold;
+  color:#007bff;
+  padding:0 8px;
+}
+
+/* BUTTON */
+.btn {
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:none;
+  border-radius:6px;
+  background:#0066cc;
+  color:white;
+  font-size:15px;
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="logo">
+  <img src="logo.jpg" alt="Company Logo">
+</div>
+
+<h2>Biomedical Service Request</h2>
+
+<div id="reader"></div>
+<div id="assetCard" class="card" style="display:none;"></div>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<script>
+const SHEET_URL =
+"https://opensheet.elk.sh/1e3JNAbJhkYirQwN5ox5rcG5BvP3VosTMoZQkIuL3ypA/Asset_Master";
+
+const assetCard = document.getElementById("assetCard");
+
+/* PARSE DD-MM-YYYY */
+function parseDate(d) {
+  if (!d) return null;
+  const p = d.trim().split("-");
+  if (p.length !== 3) return null;
+  return new Date(p[2], p[1] - 1, p[0]);
+}
+
+/* STATUS FUNCTION */
+function getStatus(doneDateStr, validityDays) {
+  const done = parseDate(doneDateStr);
+  if (!done) return "";
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const expiry = new Date(done);
+  expiry.setDate(expiry.getDate() + validityDays);
+
+  const diffDays = Math.floor((expiry - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "red";        // Expired
+  if (diffDays <= 20) return "amber";    // Near expiry
+  return "green";                        // Valid
+}
+
+function openPDF(url) {
+  if (!url) return alert("PDF not available");
+  window.open(url, "_blank");
+}
+
+function showAsset(a) {
+  assetCard.innerHTML = `
+    <div class="row"><div class="label">Asset No</div><div class="colon">:</div><div class="value">${a.Asset_No}</div></div>
+    <div class="row"><div class="label">Department</div><div class="colon">:</div><div class="value">${a.Department}</div></div>
+    <div class="row"><div class="label">Equipment</div><div class="colon">:</div><div class="value">${a.Equipment}</div></div>
+    <div class="row"><div class="label">Model</div><div class="colon">:</div><div class="value">${a.Model}</div></div>
+    <div class="row"><div class="label">Make</div><div class="colon">:</div><div class="value">${a.Make}</div></div>
+    <div class="row"><div class="label">Serial No</div><div class="colon">:</div><div class="value">${a.Serial_No}</div></div>
+
+    <hr>
+
+    <button class="btn" onclick="window.open('https://script.google.com/macros/s/AKfycbzwRVUE2AbQQTDDN6Gh0GsUvMtg_7E4e2xJ6yjeNtBw1oyUFB3DjFCUAD4aEHo_IuPhVA/exec?page=complaint&asset=${a.Asset_No}','_blank')"> Report Breakdown</button>
+    <button class="btn" onclick="window.open('https://script.google.com/macros/s/AKfycbzwRVUE2AbQQTDDN6Gh0GsUvMtg_7E4e2xJ6yjeNtBw1oyUFB3DjFCUAD4aEHo_IuPhVA/exec?page=close&asset=${a.Asset_No}','_blank')"> Close Breakdown</button>
+
+  `;
+  assetCard.style.display = "block";
+}
+
+/* BACK CAMERA ONLY */
+const qr = new Html5Qrcode("reader");
+
+Html5Qrcode.getCameras().then(cams => {
+  const cam = cams.find(c => c.label.toLowerCase().includes("back")) || cams[0];
+  qr.start(cam.id, { fps: 15, qrbox: { width: 280, height: 280 } }, txt => {
+    qr.stop();
+    fetch(SHEET_URL)
+      .then(res => res.json())
+      .then(data => {
+        const asset = data.find(a => a.Asset_No === txt.trim());
+        if (!asset) return alert("Asset not found");
+        showAsset(asset);
+      });
+  });
+});
+</script>
+
+</body>
+</html>
